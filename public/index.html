@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>我的服务看板</title>
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --ink:#1a1d21; --muted:#6b7280; --line:#e5e7eb;
+    --up:#16a34a; --up-bg:#dcfce7; --down:#dc2626; --down-bg:#fee2e2;
+    --warn:#d97706; --warn-bg:#fef3c7; --static:#6b7280; --static-bg:#f3f4f6; --accent:#2563eb; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--ink); line-height:1.5; }
+  header { background:#111827; color:#fff; padding:16px; position:sticky; top:0; z-index:10; }
+  header h1 { font-size:18px; }
+  header p { font-size:12px; color:#9ca3af; margin-top:2px; }
+  main { max-width:720px; margin:0 auto; padding:12px 12px 40px; }
+  section { margin-top:16px; }
+  h2 { font-size:15px; margin-bottom:8px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; }
+  .card h3 { font-size:14px; margin-bottom:4px; }
+  .card .sub { font-size:12px; color:var(--muted); }
+  .badge { display:inline-block; font-size:12px; font-weight:700; padding:2px 8px; border-radius:999px; margin-bottom:6px; }
+  .b-up { color:var(--up); background:var(--up-bg); }
+  .b-down { color:var(--down); background:var(--down-bg); }
+  .b-warn { color:var(--warn); background:var(--warn-bg); }
+  .b-static { color:var(--static); background:var(--static-bg); }
+  .meta { font-size:12px; color:var(--muted); margin-top:6px; }
+  .meta b { color:var(--ink); font-weight:600; }
+  .bar { height:8px; background:var(--line); border-radius:999px; overflow:hidden; margin-top:8px; }
+  .bar > i { display:block; height:100%; background:var(--up); border-radius:999px; }
+  .bar.low > i { background:var(--warn); }
+  .bar.crit > i { background:var(--down); }
+  .count { font-size:22px; font-weight:800; }
+  .count small { font-size:12px; color:var(--muted); font-weight:400; }
+  .links a { display:flex; justify-content:space-between; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:8px; color:var(--ink); text-decoration:none; font-size:14px; }
+  .links a span:last-child { color:var(--accent); font-size:12px; }
+  .err { color:var(--down); font-size:12px; margin-top:4px; word-break:break-all; }
+  footer { font-size:12px; color:var(--muted); margin-top:20px; }
+  .loading { color:var(--muted); font-size:13px; padding:24px 0; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🖥️ 我的服务看板</h1>
+  <p id="updated">正在加载…</p>
+</header>
+<main>
+  <section>
+    <h2>⏳ 到期提醒</h2>
+    <div class="grid" id="countdowns"></div>
+  </section>
+  <section>
+    <h2>📡 服务状态</h2>
+    <div id="services"><div class="loading">正在巡检…</div></div>
+  </section>
+  <section>
+    <h2>🤖 AI 额度</h2>
+    <div class="grid" id="quotas"></div>
+  </section>
+  <section>
+    <h2>🔗 快捷入口</h2>
+    <div class="links" id="links"></div>
+  </section>
+  <footer id="foot"></footer>
+</main>
+<script>
+const API = '/api/status';
+const LINKS = [
+  ['资源雷达 freebie-radar', 'https://8788-agq5r5cqtrllaihmxkbnrk65wq.instabox.tech/'],
+  ['DSA 每日选股', 'https://8000-agq5r5cqtrllaihmxkbnrk65wq.instabox.tech/'],
+  ['Open WebUI', 'https://3000-agq5r5cqtrllaihmxkbnrk65wq.instabox.tech/'],
+  ['Google AI Studio', 'https://aistudio.google.com/'],
+];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const time = iso => iso ? new Date(iso).toLocaleString('zh-CN', { hour12:false }) : '—';
+const badge = st => ({ up:['b-up','● 正常'], down:['b-down','● 异常'], unexpected:['b-warn','● 响应异常'], static:['b-static','○ 静态'], unknown:['b-static','… 未知'] }[st] || ['b-static','?']);
+
+function render(d) {
+  document.getElementById('updated').textContent =
+    '最后巡检 ' + time(d.updatedAt) + ' · 每 60 秒自动刷新';
+  // countdowns
+  document.getElementById('countdowns').innerHTML = d.countdowns.map(c =>
+    `<div class="card"><div class="count">${c.daysLeft} <small>天</small></div>
+     <div class="sub">${esc(c.name)}<br>${esc(c.date)}</div></div>`).join('');
+  // services grouped
+  const groups = {};
+  d.services.forEach(s => { (groups[s.group] = groups[s.group] || []).push(s); });
+  document.getElementById('services').innerHTML = Object.entries(groups).map(([g, list]) =>
+    `<h2 style="margin-top:12px">${esc(g)}</h2><div class="grid">` + list.map(s => {
+      const [cls, label] = badge(s.status);
+      return `<div class="card"><span class="badge ${cls}">${label}</span>
+        <h3>${esc(s.name)}</h3>
+        <div class="sub">${esc(s.note)}</div>
+        ${s.kind === 'http' ? `<div class="meta">
+          ${s.httpStatus != null ? `HTTP <b>${s.httpStatus}</b> · ` : ''}${s.ms != null ? `延迟 <b>${s.ms}ms</b>` : ''}
+          <br>上次正常：${time(s.lastOk)}</div>
+          ${s.lastError ? `<div class="err">${esc(s.lastError)}</div>` : ''}` : ''}
+      </div>`;
+    }).join('') + '</div>').join('');
+  // quotas
+  const q = d.quotas;
+  let html = '';
+  // TokenLab
+  const tl = q.tokenlab;
+  html += `<div class="card"><span class="badge b-up">TokenLab</span>
+    <h3>AMD TokenLab</h3><div class="sub">总量 ${tl.total} 点 · 已用 ${esc(tl.used)} · ${esc(tl.verified)} 核实</div>
+    <div class="meta">到期 <b>${esc(tl.expires)}</b>，还剩 <b>${tl.daysLeft} 天</b></div>
+    <div class="meta">${esc(tl.note)}</div>
+    <div class="meta">${tl.live?.live ? '🟢 Key 有效，API 可达' : '⚪ ' + esc(tl.live?.reason || '未配置 Key')}</div></div>`;
+  // Muse
+  const m = q.muse;
+  let museBody = '';
+  if (m.configured && m.data) {
+    const data = m.data;
+    const pct = data.usedPercent ?? data.percentUsed ?? data.used ?? null;
+    const remaining = data.remainingPercent ?? data.remaining ?? null;
+    const reset = data.resetAt ?? data.reset ?? data.resetTime ?? null;
+    museBody = pct != null ? `<div class="bar ${pct > 90 ? 'crit' : pct > 75 ? 'low' : ''}"><i style="width:${Math.min(100, pct)}%"></i></div>
+      <div class="meta">已用 <b>${pct}%</b>${remaining != null ? ` · 剩余 <b>${remaining}%</b>` : ''}</div>` : '';
+    museBody += `<div class="meta">重置时间：<b>${reset ? time(reset) : '见仓库'}</b></div>`;
+  } else if (m.configured && m.error) {
+    museBody = `<div class="err">${esc(m.error)}</div>`;
+  } else {
+    museBody = `<div class="meta">未配置读取令牌。<a href="${esc(m.repo)}" target="_blank" rel="noopener">查看仓库 →</a></div>`;
+  }
+  html += `<div class="card"><span class="badge b-up">Muse 用量</span><h3>Muse 免费额度</h3>${museBody}</div>`;
+  // OpenRouter
+  html += `<div class="card"><span class="badge b-static">未接入</span><h3>OpenRouter</h3>
+    <div class="sub">${esc(q.openrouter.note)}</div></div>`;
+  // Gemini
+  html += `<div class="card"><span class="badge b-up">免费档</span><h3>Gemini</h3>
+    <div class="sub">模型 <b>${esc(q.gemini.model)}</b></div><div class="meta">${esc(q.gemini.note)}</div></div>`;
+  document.getElementById('quotas').innerHTML = html;
+  // links
+  document.getElementById('links').innerHTML = LINKS.map(([n, u]) =>
+    `<a href="${esc(u)}" target="_blank" rel="noopener"><span>${esc(n)}</span><span>打开 →</span></a>`).join('');
+  document.getElementById('foot').textContent =
+    '说明：节点类 URL 返回任意 HTTP 状态即判为存活（Xray 对普通 GET 回 400 也算正常）；InstaBox 机器闲置 30 分钟自动暂停，暂停期间三个服务会显示异常，唤醒后恢复。页面不保存、不展示任何密钥。';
+}
+
+async function load() {
+  try {
+    const r = await fetch(API, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    render(await r.json());
+  } catch (e) {
+    document.getElementById('updated').textContent = '加载失败：' + e.message + '，60 秒后重试';
+  }
+}
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>
