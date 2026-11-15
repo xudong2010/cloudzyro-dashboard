@@ -1,0 +1,1 @@
+{"description":"Live status dashboard for free-tier services: service health checks, AI quota snapshots and quick links. Built for Cloudzyro Launch (512MB RAM, 1 CPU, Node.js only).","engines":{"node":">=20"},"license":"MIT","main":"server.js","name":"cloudzyro-dashboard","private":true,"scripts":{"start":"node server.js"},"version":"1.0.0"}
