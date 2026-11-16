@@ -4,8 +4,7 @@
  *
  * Zero dependencies. Node >= 20.
  * - Health-checks every service every 60s (8s timeout).
- * - UP = any HTTP response arrived (even 400/404: the Xray endpoints
- *   answer 400 to a plain GET, which still proves the server is up).
+ * - UP = any HTTP response arrived (even 400/404).
  * - DOWN = timeout / DNS failure / connection error only.
  * - State lives in memory and is also written to data/state.json.
  *
@@ -35,12 +34,6 @@ const STATE_FILE = path.join(__dirname, 'data', 'state.json');
 
 // ---------------------------------------------------------------- services
 const SERVICES = [
-  { id: 'cloady-usw1', name: 'Cloady USW1（美西）', group: 'Cloady 节点', url: 'https://dockerfile-jmmi6ccj-workspace-7v1j7r.cloady.io/', note: 'VLESS 节点；普通 GET 回 400 即为存活' },
-  { id: 'cloady-use1', name: 'Cloady USE1（美东）', group: 'Cloady 节点', url: 'https://xray-use1-dqs00o97-workspace-7v1j7r.cloady.io/', note: 'VLESS 节点；普通 GET 回 400 即为存活' },
-  { id: 'railway-usw', name: 'Railway 美西（加州）', group: 'Railway 节点', url: 'https://xray-core-production-bebd2a6b.up.railway.app/', note: 'VLESS 节点，试用至约 2026-12-15' },
-  { id: 'railway-use', name: 'Railway 美东（弗吉尼亚）', group: 'Railway 节点', url: 'https://xray-us-east-production-6ada9d95.up.railway.app/', note: 'VLESS 节点，试用至约 2026-12-15' },
-  { id: 'railway-euw', name: 'Railway 欧西（阿姆斯特丹）', group: 'Railway 节点', url: 'https://xray-eu-west-production-ffe6a901.up.railway.app/', note: 'VLESS 节点，试用至约 2026-12-15' },
-  { id: 'railway-sg', name: 'Railway 新加坡', group: 'Railway 节点', url: 'https://xray-singapore-production-ca5b4528.up.railway.app/', note: 'VLESS 节点，试用至约 2026-12-15' },
   { id: 'dsa', name: 'DSA 每日选股', group: 'InstaBox 服务', url: 'https://8000-agq5r5cqtrllaihmxkbnrk65wq.instabox.tech/api/health', expect: 200, note: 'InstaBox 机器闲置 30 分钟自动暂停，暂停时显示 DOWN，唤醒后恢复' },
   { id: 'radar', name: '资源雷达 freebie-radar', group: 'InstaBox 服务', url: 'https://8788-agq5r5cqtrllaihmxkbnrk65wq.instabox.tech/health', expect: 200, note: 'InstaBox 机器闲置 30 分钟自动暂停，暂停时显示 DOWN，唤醒后恢复' },
   { id: 'openwebui', name: 'Open WebUI', group: 'InstaBox 服务', url: 'https://3000-agq5r5cqtrllaihmxkbnrk65wq.instabox.tech/', expect: 200, note: 'InstaBox 机器闲置 30 分钟自动暂停，暂停时显示 DOWN，唤醒后恢复' },
@@ -178,7 +171,7 @@ async function runChecks() {
   checking = true;
   try {
   const httpServices = SERVICES.filter((s) => s.kind !== 'static');
-  // Stagger in batches of 3: 12 parallel requests at once can choke a
+  // Stagger in batches of 3: parallel requests at once can choke a
   // shared egress proxy (and look like a burst to upstream CDNs).
   // Sequential-ish batches still finish in ~10s, well inside the 60s cycle.
   const BATCH = 3;
@@ -226,7 +219,6 @@ function statusPayload() {
     },
     countdowns: [
       { name: 'AMD TokenLab 到期', date: '2026-12-15', daysLeft: daysUntil('2026-12-15') },
-      { name: 'Railway 试用到期（约）', date: '2026-12-15', daysLeft: daysUntil('2026-12-15') },
     ],
   };
 }
