@@ -137,7 +137,7 @@ function render(d) {
   document.getElementById('links').innerHTML = LINKS.map(([n, u]) =>
     `<a href="${esc(u)}" target="_blank" rel="noopener"><span>${esc(n)}</span><span>打开 →</span></a>`).join('');
   document.getElementById('foot').textContent =
-    '说明：节点类 URL 返回任意 HTTP 状态即判为存活（Xray 对普通 GET 回 400 也算正常）；InstaBox 机器闲置 30 分钟自动暂停，暂停期间三个服务会显示异常，唤醒后恢复。页面不保存、不展示任何密钥。';
+    '说明：巡检以任意 HTTP 响应判为存活；InstaBox 机器闲置 30 分钟自动暂停，暂停期间三个服务会显示异常，唤醒后恢复。页面不保存、不展示任何密钥。';
 }
 
 async function load() {
